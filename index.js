@@ -3,17 +3,39 @@ const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 require('dotenv').config()
+const cookieParser = require('cookie-parser')
 
 const port = process.env.PORT || 9000
 const app = express()
 
 const corsOptions = {
-	origin: ['http://localhost:5173'],
+	origin: ['http://localhost:5173', 'http://localhost:5174'],
 	credentials: true,
 	optionalSuccessStatus: 200,
 }
+
+
 app.use(cors(corsOptions))
 app.use(express.json())
+app.use(cookieParser())
+
+//verify token
+const verifyToken = (req, res, next) =>{
+	// console.log('hello, i am a middleware');
+	// req.ph = 'ph';
+	const token = req.cookies?.token;
+
+	if(!token) return res.status(401).send({ message: 'unauthorized access'})
+		jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+			if(err){
+				return res.status(401).send({ message: 'unauthorized access'})
+			}
+			req.user = decoded;
+	})
+	// console.log(token);
+	
+	next();
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.j0hxo.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -83,8 +105,15 @@ async function run() {
 
 
 	//get all jobs posted by a specific user
-	app.get('/jobs/:email', async(req, res) =>{
-		const email = req.params.email;
+	app.get('/jobs/:email', verifyToken, async(req, res) =>{
+		const email =  req.params.email;
+		const decodedEmail = req.user?.email;
+
+		// console.log('email from token--->', decodedEmail);
+		// console.log('email from params--->', email);
+
+		if(decodedEmail !== email)
+			return res.status(401).send({ message: 'unauthorized access'})
 		const query = { 'buyer.email': email};
 		const result = await jobsCollection.find(query).toArray();
 		res.send(result);
@@ -92,7 +121,7 @@ async function run() {
 
 
 	//delete a job from db
-	app.delete('/job/:id', async(req, res) =>{
+	app.delete('/job/:id', verifyToken, async(req, res) =>{
 		const id = req.params.id;
 		const query = { _id: new ObjectId(id)}
 		const result = await jobsCollection.deleteOne(query);
@@ -147,10 +176,20 @@ async function run() {
 	})
 
 	//get all bids for specific user
-	app.get('/bids/:email', async(req, res)=>{
+	app.get('/bids/:email', verifyToken, async(req, res)=>{
+
+		
+		console.log(req.ph);
 		const isBuyer = req.query.buyer;
 		// console.log(isBuyer);
 		const email =  req.params.email;
+		const decodedEmail = req.user?.email;
+
+		// console.log('email from token--->', decodedEmail);
+		// console.log('email from params--->', email);
+
+		if(decodedEmail !== email)
+			return res.status(401).send({ message: 'unauthorized access'})
 		const query = {} ;
 		if(isBuyer){
 			query.buyer = email;
@@ -164,12 +203,12 @@ async function run() {
 
 
 	//get all bid requests for a specific user
-	app.get('/bid-requests/:email', async(req, res) =>{
-		const email = req.params.email;
-		const query = { buyer: email};
-		const result = await bidsCollection.find(query).toArray();
-		res.send(result);
-	})
+	// app.get('/bid-requests/:email', async(req, res) =>{
+	// 	const email = req.params.email;
+	// 	const query = { buyer: email};
+	// 	const result = await bidsCollection.find(query).toArray();
+	// 	res.send(result);
+	// })
 
 	//update bid status
 	app.patch('/bid-status-update/:id', async(req, res) =>{
@@ -186,24 +225,6 @@ async function run() {
 
 
 	//get all jobs
-	// app.get('/all-jobs', async(req, res) =>{
-
-	// 	const filter = req.query.filter
-	// 	const search = req.query.search
-	// 	const sort = req.query.sort
-	// 	const options = {};
-	// 	if (sort) options = { sort: {deadline: sort === 'asc' ? 1 : -1}};
-	// 	console.log(search);
-	// 	let query = { title: {
-	// 		$regex: search,
-	// 		$options: 'i',
-	// 	}};
-	// 	if(filter) query.category = filter
-
-	// 	const result = await jobsCollection.find(query, options).toArray();
-	// 	res.send(result);
-	// })
-
 	app.get('/all-jobs', async (req, res) => {
 		const filter = req.query.filter
 		const search = req.query.search
