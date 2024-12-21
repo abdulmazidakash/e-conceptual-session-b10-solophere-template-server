@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
+const jwt = require('jsonwebtoken')
 require('dotenv').config()
 
 const port = process.env.PORT || 9000
@@ -27,6 +28,16 @@ async function run() {
 	const db = client.db('solo-db');
 	const jobsCollection = db.collection('jobs');
 	const bidsCollection = db.collection('bids');
+
+	//generate jwt
+	app.post('/jwt', async(req, res) =>{
+		const email = req.body;
+		//create token
+		const token =jwt.sign(email, process.env.SECRET_KEY, {expiresIn: '365d'});
+		console.log(token);
+		res.send(token);
+	})
+
 
 
 	//save a jobData in db
@@ -151,20 +162,40 @@ async function run() {
 
 
 	//get all jobs
-	app.get('/all-jobs', async(req, res) =>{
+	// app.get('/all-jobs', async(req, res) =>{
 
-		const filter = req.query.filter;
-		const search = req.query.search;
-		console.log(search);
-		let query = { title: {
+	// 	const filter = req.query.filter
+	// 	const search = req.query.search
+	// 	const sort = req.query.sort
+	// 	const options = {};
+	// 	if (sort) options = { sort: {deadline: sort === 'asc' ? 1 : -1}};
+	// 	console.log(search);
+	// 	let query = { title: {
+	// 		$regex: search,
+	// 		$options: 'i',
+	// 	}};
+	// 	if(filter) query.category = filter
+
+	// 	const result = await jobsCollection.find(query, options).toArray();
+	// 	res.send(result);
+	// })
+
+	app.get('/all-jobs', async (req, res) => {
+		const filter = req.query.filter
+		const search = req.query.search
+		const sort = req.query.sort
+		let options = {}
+		if (sort) options = { sort: { deadline: sort === 'asc' ? 1 : -1 } }
+		let query = {
+		  title: {
 			$regex: search,
 			$options: 'i',
-		}};
-		if(filter) query.category = filter
-
-		const result = await jobsCollection.find(query).toArray();
-		res.send(result);
-	})
+		  },
+		}
+		if (filter) query.category = filter
+		const result = await jobsCollection.find(query, options).toArray()
+		res.send(result)
+	  })
 
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
